@@ -1,35 +1,32 @@
-import express from "express";
+import { Router } from "express";
 import User from "../models/User.js";
 import bcrypt from "bcrypt";
 import { generateUserToken } from "../services/token.js";
 
-const app = express();
-app.post("/register", async (req, res) => {
-  try {
-    const { name, email, password, role } = req.body;
+const router = Router();
 
-    const existUser = await User.findOne({ email });
-    if (existUser) {
-      return res.status(400).send("User already exists");
-    }
+const regUser = async (req, res) => {
+  const { name, email, password, role } = req.body;
 
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const user = new User({
-      name: name,
-      email: email,
-      password: hashedPassword,
-      role: role,
-    });
-
-    await user.save();
-    const token = generateUserToken(user._id);
-    res.status(200).json({ user, token });
-  } catch (err) {
-    res.status(400).send(err);
+  const existUser = await User.findOne({ email });
+  if (existUser) {
+    return res.status(400).send({ message: "User already exists" });
   }
-});
 
-app.get("/users", async (req, res) => {
+  const hashedPassword = await bcrypt.hash(password, 10);
+  const user = new User({
+    name: name,
+    email: email,
+    password: hashedPassword,
+    role: role,
+  });
+
+  await user.save();
+  const token = generateUserToken(user._id);
+  res.status(200).json({ user, token });
+};
+
+const getUsers = async (req, res) => {
   try {
     const users = await User.find();
     res.json(users);
@@ -37,87 +34,92 @@ app.get("/users", async (req, res) => {
     console.error(error);
     res.status(500).send("Server Error");
   }
-});
+};
 
-app.delete("/user/delete/:id", async (req, res) => {
-  try {
-    const id = req.params.id;
-    const user = await User.findByIdAndRemove(id);
-    if (!user) {
-      return res.status(404).send("User not found");
-    }
-    res.status(200).json(await User.find());
-  } catch (error) {
-    console.error(error);
-    res.status(500).send("Server Error");
-  }
-});
-
-app.post("/login", async (req, res) => {
+const loginUser = async (req, res) => {
   const { email, password } = req.body;
+  console.log(req.body);
   if (!email || !password) {
     return res.status(400).send("Fill inputs.");
   }
   const existUser = await User.findOne({ email });
   if (!existUser) {
-    return res.status(400).send("User already exist");
+    return res.status(400).send({ message: "register" });
   }
   const isPassEqual = await bcrypt.compare(password, existUser.password);
   if (!isPassEqual) {
-    return res.status(400).send("Incorrect password!");
+    return res.status(400).send({ message: "Incorrect password!" });
   }
   const token = generateUserToken(existUser._id);
-  res.status(200).send({ token });
-});
+  res.status(200).send({ existUser, token });
+};
 
-app.put("/users/update/:id", async (req, res) => {
-  try {
-    const userId = req.params.id;
-    const { name, role, email, password } = req.body;
+router.route("/register").post(regUser);
+router.route("/allusers").get(getUsers);
+router.route("/login").post(loginUser);
 
-    // Find the user by ID and update the fields
-    const updatedUser = await User.findByIdAndUpdate(
-      userId,
-      {
-        name,
-        email,
-        role,
-      },
-      { new: true }
-    );
+// app.delete("/user/delete/:id", async (req, res) => {
+//   try {
+//     const id = req.params.id;
+//     const user = await User.findByIdAndRemove(id);
+//     if (!user) {
+//       return res.status(404).send("User not found");
+//     }
+//     res.status(200).json(await User.find());
+//   } catch (error) {
+//     console.error(error);
+//     res.status(500).send("Server Error");
+//   }
+// });
 
-    if (!updatedUser) {
-      return res.status(404).send("User not found");
-    }
+// app.put("/users/update/:id", async (req, res) => {
+//   try {
+//     const userId = req.params.id;
+//     const { name, role, email, password } = req.body;
 
-    res.status(200).send(updatedUser);
-  } catch (error) {
-    console.error(error);
-    res.status(500).send("Server Error");
-  }
-});
+//     // Find the user by ID and update the fields
+//     const updatedUser = await User.findByIdAndUpdate(
+//       userId,
+//       {
+//         name,
+//         email,
+//         role,
+//       },
+//       { new: true }
+//     );
 
-app.delete("/users/delete", async (req, res) => {
-  try {
-    const { ids } = req.body;
+//     if (!updatedUser) {
+//       return res.status(404).send("User not found");
+//     }
 
-    // Check if the request contains IDs to delete
-    if (!ids || !Array.isArray(ids) || ids.length === 0) {
-      return res.status(400).send("Please provide valid user IDs to delete");
-    }
+//     res.status(200).send(updatedUser);
+//   } catch (error) {
+//     console.error(error);
+//     res.status(500).send("Server Error");
+//   }
+// });
 
-    // Delete users based on the array of IDs
-    const deletionResult = await User.deleteMany({ _id: { $in: ids } });
+// app.delete("/users/delete", async (req, res) => {
+//   try {
+//     const { ids } = req.body;
 
-    if (deletionResult.deletedCount === 0) {
-      return res.status(404).send("Users not found");
-    }
+//     // Check if the request contains IDs to delete
+//     if (!ids || !Array.isArray(ids) || ids.length === 0) {
+//       return res.status(400).send("Please provide valid user IDs to delete");
+//     }
 
-    res.status(200).send(await User.find());
-  } catch (error) {
-    console.error(error);
-    res.status(500).send("Server Error");
-  }
-});
+//     // Delete users based on the array of IDs
+//     const deletionResult = await User.deleteMany({ _id: { $in: ids } });
 
-export default app;
+//     if (deletionResult.deletedCount === 0) {
+//       return res.status(404).send("Users not found");
+//     }
+
+//     res.status(200).send(await User.find());
+//   } catch (error) {
+//     console.error(error);
+//     res.status(500).send("Server Error");
+//   }
+// });
+
+export default router;
