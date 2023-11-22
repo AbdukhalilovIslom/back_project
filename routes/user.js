@@ -1,7 +1,7 @@
 import { Router } from "express";
+import { generateUserToken } from "../services/token.js";
 import User from "../models/User.js";
 import bcrypt from "bcrypt";
-import { generateUserToken } from "../services/token.js";
 import auth from "../middleware/auth.js";
 import Item from "../models/Item.js";
 import Collection from "../models/Collection.js";
