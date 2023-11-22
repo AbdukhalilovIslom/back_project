@@ -5,6 +5,7 @@ const UserSchema = new Schema({
   email: { type: String, required: true, lowercase: true, unique: true },
   password: { type: String, required: true },
   role: { type: String },
+  status: { type: String, required: true, default: "active" },
 });
 
 const User = model("User", UserSchema);

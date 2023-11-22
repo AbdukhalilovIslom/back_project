@@ -1,6 +1,8 @@
 import { Router } from "express";
 import Item from "../models/Item.js";
 import auth from "../middleware/auth.js";
+import checkUserStatus from "../middleware/checkUserStatus.js";
+import Collection from "../models/Collection.js";
 
 const router = Router();
 
@@ -13,9 +15,19 @@ const getAllItems = async (req, res) => {
     res.status(500).send("Server Error");
   }
 };
+const getItemsByColl = async (req, res) => {
+  try {
+    const items = await Item.find({ collection_id: req.params.id });
+    const collection = await Collection.findById(req.params.id);
+    res.json({ collection: collection, items: items });
+  } catch (error) {
+    console.error(error);
+    res.status(500).send("Server Error");
+  }
+};
 const getMyItems = async (req, res) => {
   if (req.user && req.query.id) {
-    const userId = req.user.userId;
+    const userId = req.user._id;
     const collection_id = req.query.id;
 
     try {
@@ -33,7 +45,7 @@ const getMyItems = async (req, res) => {
 const create = async (req, res) => {
   if (req.user) {
     const { name, collection_id, tag } = req.body;
-    const userId = req.user.userId;
+    const userId = req.user._id;
     const newItem = new Item({
       name,
       collection_id,
@@ -88,8 +100,35 @@ const updateItem = async (req, res) => {
   }
 };
 
+const comment = async (req, res) => {
+  try {
+    const comment = {
+      text: req.body.text,
+      postedBy: req.user._id,
+    };
+
+    const updated = await Item.findByIdAndUpdate(
+      req.body.itemId,
+      {
+        $push: { comments: comment },
+      },
+      {
+        new: true,
+      }
+    );
+
+    if (!updated) {
+      return res.status(404).send("not found");
+    }
+
+    res.status(200).send({ message: "comment added" });
+  } catch (error) {
+    console.error(error);
+    res.status(500).send("Server Error");
+  }
+};
 const like = async (req, res) => {
-  const userId = req.user.userId;
+  const userId = req.user._id;
   const itemId = req.body.itemId;
 
   try {
@@ -131,29 +170,73 @@ const like = async (req, res) => {
 };
 
 const unlike = async (req, res) => {
-  Item.findByIdAndUpdate(
-    req.body.itemId,
-    {
-      $pull: { likes: req.user.userId },
-    },
-    {
-      new: true,
+  try {
+    const result = await Item.findByIdAndUpdate(
+      req.body.itemId,
+      {
+        $pull: { likes: req.user._id },
+      },
+      {
+        new: true,
+      }
+    );
+
+    if (!result) {
+      return res.status(404).json({ error: "Item not found" });
     }
-  ).catch((err) => {
-    if (err) {
-      return res.status(422).json({ error: err });
-    } else {
-      res.json(result);
-    }
-  });
+
+    res.json(result);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Server Error" });
+  }
+};
+
+const searchItems = async (req, res) => {
+  try {
+    const { query } = req.query;
+
+    const items = await Item.find({
+      $or: [
+        { name: { $regex: query, $options: "i" } },
+        { "comments.text": { $regex: query, $options: "i" } },
+        { tag: { $regex: query, $options: "i" } },
+      ],
+    });
+
+    res.json(items);
+  } catch (err) {
+    res.status(500).send(err);
+  }
+};
+
+const adminAddItem = async (req, res) => {
+  if (req.user.role === "admin") {
+    const { name, collection_id, tag, userId } = req.body;
+    const newItem = new Item({
+      name,
+      collection_id,
+      tag,
+      userId,
+    });
+
+    await newItem.save();
+    res.status(200).json(newItem);
+  } else {
+    res.status(401).send({ message: "not authed" });
+  }
 };
 
 router.get("/allitems", getAllItems);
+router.get("/itemsbycoll/:id", getItemsByColl);
 router.get("/myitems", auth, getMyItems);
-router.post("/create", auth, create);
-router.delete("/delete/:id", auth, deleteItem);
-router.put("/update/:id", auth, updateItem);
-router.put("/like", auth, like);
-router.put("/unlike", auth, unlike);
+router.get("/search", auth, searchItems);
+router.post("/create", auth, checkUserStatus, create);
+router.post("/admin/create", auth, checkUserStatus, adminAddItem);
+router.delete("/delete/:id", auth, checkUserStatus, deleteItem);
+router.put("/update/:id", auth, checkUserStatus, updateItem);
+router.put("/like", auth, checkUserStatus, like);
+router.put("/unlike", auth, checkUserStatus, unlike);
+router.put("/comment", auth, checkUserStatus, comment);
 
 export default router;

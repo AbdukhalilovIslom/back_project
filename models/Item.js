@@ -7,6 +7,12 @@ export const ItemSchema = new Schema(
     collection_id: { type: String, required: true },
     userId: { type: String, required: true },
     likes: [{ type: ObjectId, ref: "User" }],
+    comments: [
+      {
+        text: String,
+        postedBy: { type: ObjectId, ref: "User" },
+      },
+    ],
   },
   { timestamps: true }
 );

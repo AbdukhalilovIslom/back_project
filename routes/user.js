@@ -2,6 +2,9 @@ import { Router } from "express";
 import User from "../models/User.js";
 import bcrypt from "bcrypt";
 import { generateUserToken } from "../services/token.js";
+import auth from "../middleware/auth.js";
+import Item from "../models/Item.js";
+import Collection from "../models/Collection.js";
 
 const router = Router();
 
@@ -35,10 +38,30 @@ const getUsers = async (req, res) => {
     res.status(500).send("Server Error");
   }
 };
+const getUsersName = async (req, res) => {
+  try {
+    const users = await User.find().select("name");
+
+    res.json(users);
+  } catch (error) {
+    console.error(error);
+    res.status(500).send("Server Error");
+  }
+};
+
+const info = async (req, res) => {
+  try {
+    const users = await User.findById(req.user._id);
+    res.json(users);
+  } catch (error) {
+    console.error(error);
+    res.status(500).send("Server Error");
+  }
+};
 
 const loginUser = async (req, res) => {
   const { email, password } = req.body;
-  console.log(req.body);
+
   if (!email || !password) {
     return res.status(400).send("Fill inputs.");
   }
@@ -54,72 +77,87 @@ const loginUser = async (req, res) => {
   res.status(200).send({ existUser, token });
 };
 
+const userUpdateRole = async (req, res) => {
+  try {
+    if (req.user.role == "admin") {
+      const userId = req.params.id;
+      const { role } = req.body;
+      const updatedRole = await User.findByIdAndUpdate(
+        userId,
+        {
+          role,
+        },
+        { new: true }
+      );
+      res.json({
+        message: "User role updated successfully",
+        user: updatedRole,
+      });
+
+      if (!updatedRole) {
+        return res.status(404).send("User not found");
+      }
+    } else {
+      return res.status(404).send("You are not admin");
+    }
+  } catch (error) {
+    console.error(error);
+    res.status(500).send("Server Error");
+  }
+};
+
+const userUpdateStatus = async (req, res) => {
+  try {
+    const userId = req.params.id;
+    const { status } = req.body;
+    const updatedRole = await User.findByIdAndUpdate(
+      userId,
+      {
+        status,
+      },
+      { new: true }
+    );
+    res.json({
+      message: "User role updated successfully",
+      user: updatedRole,
+    });
+
+    if (!updatedRole) {
+      return res.status(404).send("User not found");
+    }
+  } catch (error) {
+    console.error(error);
+    res.status(500).send("Server Error");
+  }
+};
+
+const deleteUser = async (req, res) => {
+  const userId = req.params.id;
+
+  try {
+    await Item.deleteMany({ userId });
+    await Collection.deleteMany({ userId });
+
+    const deletedUser = await User.findByIdAndDelete(userId);
+
+    if (!deletedUser) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    res.json({ message: "User and associated data deleted successfully" });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Server Error" });
+  }
+};
+
 router.route("/register").post(regUser);
-router.route("/allusers").get(getUsers);
 router.route("/login").post(loginUser);
-
-// app.delete("/user/delete/:id", async (req, res) => {
-//   try {
-//     const id = req.params.id;
-//     const user = await User.findByIdAndRemove(id);
-//     if (!user) {
-//       return res.status(404).send("User not found");
-//     }
-//     res.status(200).json(await User.find());
-//   } catch (error) {
-//     console.error(error);
-//     res.status(500).send("Server Error");
-//   }
-// });
-
-// app.put("/users/update/:id", async (req, res) => {
-//   try {
-//     const userId = req.params.id;
-//     const { name, role, email, password } = req.body;
-
-//     // Find the user by ID and update the fields
-//     const updatedUser = await User.findByIdAndUpdate(
-//       userId,
-//       {
-//         name,
-//         email,
-//         role,
-//       },
-//       { new: true }
-//     );
-
-//     if (!updatedUser) {
-//       return res.status(404).send("User not found");
-//     }
-
-//     res.status(200).send(updatedUser);
-//   } catch (error) {
-//     console.error(error);
-//     res.status(500).send("Server Error");
-//   }
-// });
-
-// app.delete("/users/delete", async (req, res) => {
-//   try {
-//     const { ids } = req.body;
-
-//     // Check if the request contains IDs to delete
-//     if (!ids || !Array.isArray(ids) || ids.length === 0) {
-//       return res.status(400).send("Please provide valid user IDs to delete");
-//     }
-
-//     // Delete users based on the array of IDs
-//     const deletionResult = await User.deleteMany({ _id: { $in: ids } });
-
-//     if (deletionResult.deletedCount === 0) {
-//       return res.status(404).send("Users not found");
-//     }
-
-//     res.status(200).send(await User.find());
-//   } catch (error) {
-//     console.error(error);
-//     res.status(500).send("Server Error");
-//   }
-// });
+router.get("/info", auth, info);
+router.put("/update/role/:id", auth, userUpdateRole);
+router.put("/update/status/:id", auth, userUpdateStatus);
+router.get("/allusers", auth, getUsers);
+router.delete("/delete/:id", auth, deleteUser);
+router.get("/allusersname", getUsersName);
 
 export default router;

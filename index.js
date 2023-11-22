@@ -7,7 +7,6 @@ import cors from "cors";
 import User from "./routes/user.js";
 import Collection from "./routes/collection.js";
 import Item from "./routes/item.js";
-import Comment from "./routes/comment.js";
 
 dotenv.config();
 const corsOptions = {
@@ -25,7 +24,6 @@ const db = mongoose.connection;
 app.use("/user", User);
 app.use("/collection", Collection);
 app.use("/item", Item);
-app.use("/comment", Comment);
 
 // Connect to the MongoDB database
 mongoose.connect(process.env.MONGO_URI, {
