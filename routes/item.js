@@ -46,15 +46,18 @@ const create = async (req, res) => {
   if (req.user) {
     const { name, collection_id, tag } = req.body;
     const userId = req.user._id;
-    const newItem = new Item({
-      name,
-      collection_id,
-      tag,
-      userId,
-    });
-
-    await newItem.save();
-    res.status(200).json(newItem);
+    if (name && collection_id && tag) {
+      const newItem = new Item({
+        name,
+        collection_id,
+        tag,
+        userId,
+      });
+      await newItem.save();
+      res.status(200).json(newItem);
+    } else {
+      res.status(400).json({ message: "bad request" });
+    }
   } else {
     res.status(401).send({ message: "not authed" });
   }
@@ -227,7 +230,27 @@ const adminAddItem = async (req, res) => {
   }
 };
 
+const getTags = async (req, res) => {
+  const items = await Item.find({}, "tag");
+  const uniqueTags = [];
+
+  items.map((el) => {
+    el.tag;
+  });
+
+  items.forEach((item) => {
+    const tags = item.tag.split(" ");
+    tags.forEach((tag) => {
+      if (!uniqueTags.includes(tag)) {
+        if (tag.includes("#")) uniqueTags.push(tag);
+      }
+    });
+  });
+  res.json(uniqueTags);
+};
+
 router.get("/allitems", getAllItems);
+router.get("/tags", getTags);
 router.get("/itemsbycoll/:id", getItemsByColl);
 router.get("/myitems", auth, getMyItems);
 router.get("/search", auth, searchItems);
